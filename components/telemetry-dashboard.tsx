@@ -5,12 +5,14 @@ import {
   Activity,
   Gauge,
   Move3D,
+  Power,
   Route,
   Wifi,
   WifiOff,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import type { TelemetryPayload } from "@/lib/types"
 import { formatNumber } from "@/lib/utils"
 
@@ -55,7 +57,38 @@ function MetricCard({
 export function TelemetryDashboard() {
   const [data, setData] = useState<TelemetryPayload>(initialData)
   const [connected, setConnected] = useState(false)
+  const [sendingStart, setSendingStart] = useState(false)
+  const [commandStatus, setCommandStatus] = useState<"idle" | "ok" | "error">("idle")
   const socketRef = useRef<WebSocket | null>(null)
+
+  const sendStartCartEvent = () => {
+    const socket = socketRef.current
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setCommandStatus("error")
+      return
+    }
+
+    setSendingStart(true)
+    setCommandStatus("idle")
+
+    try {
+      socket.send(
+        JSON.stringify({
+          event: "cart_start",
+          value: true,
+          timestamp: Date.now(),
+        })
+      )
+
+      setCommandStatus("ok")
+    } catch (error) {
+      console.error("Error sending cart_start event:", error)
+      setCommandStatus("error")
+    } finally {
+      setSendingStart(false)
+    }
+  }
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -122,6 +155,24 @@ export function TelemetryDashboard() {
           <Badge variant="secondary" className="px-3 py-1">
             Última actualización: {lastUpdate}
           </Badge>
+          <Button
+            onClick={sendStartCartEvent}
+            disabled={!connected || sendingStart}
+            className="gap-2"
+          >
+            <Power className="h-4 w-4" />
+            {sendingStart ? "Enviando..." : "Prender carrito"}
+          </Button>
+          {commandStatus === "ok" && (
+            <Badge variant="default" className="px-3 py-1">
+              Evento enviado
+            </Badge>
+          )}
+          {commandStatus === "error" && (
+            <Badge variant="destructive" className="px-3 py-1">
+              No se pudo enviar
+            </Badge>
+          )}
         </div>
       </div>
 
